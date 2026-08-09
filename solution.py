@@ -40,7 +40,7 @@ class Solver:
         e.g. [1, 4, 6] will only run testcases 1, 4, and 6, excluding, 2, 3, and 5.
         :return: a list containing the testcase number to run (testcases in 1-6).
         """
-        return [1, 3, 5, 6]
+        return [1, 2, 3, 4, 5, 6]
 
     # === Uniform Cost Search ==========================================================================================
     def search_ucs(self):
