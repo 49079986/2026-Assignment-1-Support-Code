@@ -98,6 +98,8 @@ class Solver:
     def search_a_star(self):
         """
         Find a path which solves the environment using A* Search.
+        Your heuristic computation must be implemented within compute_heuristic and called from this method
+        If you have any expensive pre-computation you can implment it in preprocess_heuristic
         :return: path (list of actions, where each action is an element of GameEnv.ACTIONS)
         """
 
