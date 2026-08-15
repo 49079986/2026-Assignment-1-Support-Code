@@ -16,7 +16,7 @@ RIGHT
 # UCS run time targets (min score target, max score target)
 9.591, 4.7955
 # A* run time targets (min score target, max score target)
-0.09, 0.045
+0.0874, 0.0437
 # grid data
 RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
 R   E    RRR                     R
