@@ -11,6 +11,12 @@ COMP3702 Assignment 1 "Crystal Rover" Support Code
 Last updated by vp 03/08/26
 """
 
+arrows = {
+    "UP": "↑",
+    "DOWN": "↓",
+    "LEFT": "←",
+    "RIGHT": "→",
+}
 
 class GUI:
 
@@ -47,6 +53,13 @@ class GUI:
         self.canvas = tk.Canvas(self.window)
         self.canvas.configure(bg="white")
         self.canvas.pack(fill="both", expand=True)
+
+        # Add info label
+        self.info_label = tk.StringVar()
+        crystals_remaining = self.game_env.min_samples - sum(game_env.get_init_state().crystal_status)
+        self.info_label.set("crystals left = " + str(crystals_remaining) + ", storm " + str(self.game_env.storm_directional_cost) + " " + str(arrows.get(self.game_env.storm_direction)))
+        self.label = tk.Label(self.window, textvariable=self.info_label, bg="white")
+        self.label.place(x=0, y=0)
 
         # load images
         if small_mode:
@@ -112,6 +125,9 @@ class GUI:
 
 
     def update_state(self, state):
+        crystals_remaining = self.game_env.min_samples - sum(state.crystal_status)
+        self.info_label.set("crystals remaining = " + str(crystals_remaining) + ", storm " + str(self.game_env.storm_directional_cost) + " " + str(arrows.get(self.game_env.storm_direction)))
+
         prev_state = self.last_state
         self.last_state = state
 
