@@ -66,7 +66,7 @@ class Solver:
 
             # Find the state with the lowest cost.
             cost, _, current_state, path = heapq.heappop(frontier)
-            if self.game_env.is_game_solved(current_state):
+            if self.game_env.is_solved(current_state):
                 return path
 
             # If the cost of the current state is greater than the cost recorded in visited_cost, it means there is a better path to this state, so skip it.
