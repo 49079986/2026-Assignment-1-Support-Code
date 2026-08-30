@@ -48,14 +48,50 @@ class Solver:
         Find a path which solves the environment using Uniform Cost Search (UCS).
         :return: path (list of actions, where each action is an element of GameEnv.ACTIONS)
         """
+        # Simplify sorting using heapq (Source: Chat-gpt)
+        import heapq
+        from itertools import count
 
-        #
-        #
-        # TODO: Implement your UCS code here.
-        #
-        #
+        # Step1: get the initial state of the game env
+        init_state = self.game_env.get_init_state()
 
-        pass
+        frontier = []
+        counter = count()
+
+        heapq.heappush(frontier, (0, next(counter), init_state, []))  # (cost, counter, state, path)
+
+        visited_cost = {init_state: 0}  # (state, cost)
+
+        while frontier:
+
+            # Find the state with the lowest cost.
+            cost, _, current_state, path = heapq.heappop(frontier)
+            if self.game_env.is_game_solved(current_state):
+                return path
+
+            # If the cost of the current state is greater than the cost recorded in visited_cost, it means there is a better path to this state, so skip it.
+            if cost > visited_cost[current_state]:
+                continue
+
+            # Try all possible actions, the specific actions of which are provided by GameEnv.ACTIONS.
+            for action in GameEnv.ACTIONS:
+                next_state, success, error_msg = self.game_env.perform_action(current_state,action)
+                if not success:
+                    continue
+
+                # If an error occurs, skip this state.
+                if self.game_env.is_game_over(next_state):
+                    continue
+
+                new_cost = cost + self.game_env.ACTION_COST[action]
+
+                # 1. I've never seen this state before; 2. I've seen this state before, but the cost is lower.
+                if next_state not in visited_cost or new_cost < visited_cost[next_state]:
+                    visited_cost[next_state] = new_cost
+                    new_path = path + [action]
+                    heapq.heappush(frontier, (new_cost, next(counter), next_state, new_path))
+
+        return []  # Return an empty path if no solution is found
 
     # === A* Search ====================================================================================================
     # TODO: this method is unnecessary if multiple searches on the same environment are not performed
