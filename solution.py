@@ -18,9 +18,9 @@ Last updated by vp 03/08/26
 
 class Solver:
 
-    STUDENT_NAME = "Crystal Rover" # replace with your name
-    STUDENT_ID = "s4123456"  # replace with your student ID
-    GITHUB_USERNAME = "cool-comp3702-student" # replace with your GitHub username
+    STUDENT_NAME = "Yuyang Gong" # replace with your name
+    STUDENT_ID = "s4907998"  # replace with your student ID
+    GITHUB_USERNAME = "49079986" # replace with your GitHub username
 
     def __init__(self, game_env):
         self.game_env = game_env
@@ -94,23 +94,18 @@ class Solver:
         return []  # Return an empty path if no solution is found
 
     # === A* Search ====================================================================================================
-    # TODO: this method is unnecessary if multiple searches on the same environment are not performed
     def preprocess_heuristic(self):
         """
         Perform pre-processing (e.g. pre-computing repeatedly used values) necessary for your heuristic,
         """
+        min_walk_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS)
 
-        #
-        #
-        # TODO: (Optional) Implement code for any preprocessing required by your heuristic here (if your heuristic
-        #  requires preprocessing).
-        #
-        # If you choose to implement code here, you should call this method from your search_a_star method (e.g. once at
-        # the beginning of your search).
-        #
-        #
+        min_boost_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS if action != 'BOOST')
 
-        pass
+        min_jump_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS if action != 'JUMP')
+
+        self.min_walk_cost_per_cell = min(min_walk_cost_per_cell, min_boost_cost_per_cell, min_jump_cost_per_cell)
+
 
     def compute_heuristic(self, state):
         """
@@ -118,18 +113,17 @@ class Solver:
         :param state: given state (GameState object)
         :return a real number h(n)
         """
+        min_cost = min(self.game_env.ACTION_COST.values())
 
-        #
-        #
-        # TODO: Implement your heuristic function for A* search here. Note that your heuristic can be tested on
-        #  gradescope even if you have not yet implemented search_a_star.
-        #
-        # You should call this method from your search_a_star method (e.g. every time you need to compute a heuristic
-        # value for a state).
-        #
-        #
+        collected = sum(state.crystal_status)
+        if collected >= self.game_env.n_crystals:
+            targets = self.game_env.launch_positions
+        else:
+            targets = [self.game_env.crystal_positions[i]
+                for i, got in enumerate(state.crystal_status)
+                if not got]
 
-        pass
+        return min(abs(state.row-r) + abs(state.col-c) for r, c in targets) * min_cost  
 
     def search_a_star(self):
         """
@@ -138,11 +132,42 @@ class Solver:
         If you have any expensive pre-computation you can implment it in preprocess_heuristic
         :return: path (list of actions, where each action is an element of GameEnv.ACTIONS)
         """
+        import heapq
+        from itertools import count
 
-        #
-        #
-        # TODO: Implement your A* search code here.
-        #
-        #
+        init_state = self.game_env.get_init_state()
 
-        pass
+        frontier = []
+        counter = count()
+
+        start_h = self.compute_heuristic(init_state)
+        heapq.heappush(frontier, (start_h, next(counter),0, init_state, []))
+
+        visited_cost = {init_state: 0}  # (state, cost)
+
+        while frontier:
+            _, _, cost, current_state, path = heapq.heappop(frontier)
+
+            if self.game_env.is_solved(current_state):
+                return path
+
+            if cost > visited_cost[current_state]:
+                continue
+
+            for action in GameEnv.ACTIONS:
+                next_state, success, error_msg = self.game_env.perform_action(current_state, action)
+                if not success:
+                    continue
+
+                if self.game_env.is_game_over(next_state):
+                    continue
+
+                new_cost = cost + self.game_env.ACTION_COST[action]
+
+                if next_state not in visited_cost or new_cost < visited_cost[next_state]:
+                    visited_cost[next_state] = new_cost
+                    new_path = path + [action]
+                    h = self.compute_heuristic(next_state)
+                    f = new_cost + h
+                    heapq.heappush(frontier, (f, next(counter), new_cost, next_state, new_path))
+        return []
