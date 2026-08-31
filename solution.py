@@ -1,4 +1,8 @@
+import heapq
 import sys
+from functools import lru_cache
+from itertools import count
+
 from game_env import GameEnv
 from game_state import GameState
 
@@ -27,6 +31,11 @@ class Solver:
         self.crystals = game_env.crystal_positions
         self.launches = game_env.launch_positions
         self.min_action_cost = min(game_env.ACTION_COST.values())
+        self.action_order = [
+            GameEnv.WALK_LEFT, GameEnv.WALK_RIGHT, GameEnv.WALK_UP, GameEnv.WALK_DOWN,
+            GameEnv.BOOST_LEFT, GameEnv.BOOST_RIGHT, GameEnv.BOOST_UP, GameEnv.BOOST_DOWN,
+            GameEnv.JUMP_LEFT, GameEnv.JUMP_RIGHT, GameEnv.JUMP_UP, GameEnv.JUMP_DOWN,
+        ]
 
 
     @staticmethod
@@ -45,10 +54,6 @@ class Solver:
         Find a path which solves the environment using Uniform Cost Search (UCS).
         :return: path (list of actions, where each action is an element of GameEnv.ACTIONS)
         """
-        # Simplify sorting using heapq (Source: Chat-gpt)
-        import heapq
-        from itertools import count
-
         # Step1: get the initial state of the game env
         init_state = self.game_env.get_init_state()
 
@@ -71,7 +76,7 @@ class Solver:
                 continue
 
             # Try all possible actions, the specific actions of which are provided by GameEnv.ACTIONS.
-            for action in GameEnv.ACTIONS:
+            for action in self.action_order:
                 next_state, success, error_msg = self.game_env.perform_action(current_state,action)
                 if not success:
                     continue
@@ -95,13 +100,7 @@ class Solver:
         """
         Perform pre-processing (e.g. pre-computing repeatedly used values) necessary for your heuristic,
         """
-        min_walk_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS)
-
-        min_boost_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS if action != 'BOOST')
-
-        min_jump_cost_per_cell = min(self.game_env.ACTION_COST[action] for action in GameEnv.ACTIONS if action != 'JUMP')
-
-        self.min_walk_cost_per_cell = min(min_walk_cost_per_cell, min_boost_cost_per_cell, min_jump_cost_per_cell)
+        pass
 
 
     def compute_heuristic(self, state):
@@ -110,27 +109,21 @@ class Solver:
         :param state: given state (GameState object)
         :return a real number h(n)
         """
-        min_cost = min(self.game_env.ACTION_COST.values())
         collected = sum(state.crystal_status)
-
-        def dist(pos1, pos2):
-            return (abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])) * min_cost
-
         current = (state.row, state.col)
+        samples_needed = self.game_env.min_samples - collected
 
-        if collected >= self.game_env.min_samples:
-            return min(dist(current, launch) for launch in self.game_env.launch_positions)
+        if samples_needed <= 0:
+            return self._nearest_launch_distance(current)
 
-        remaining_crystals = [
-            self.game_env.crystal_positions[i]
-            for i, got in enumerate(state.crystal_status)
-            if not got
-        ]
+        remaining_indexes = tuple(
+            i for i, got in enumerate(state.crystal_status) if not got
+        )
 
         return min(
-            dist(current, crystal) +
-            min(dist(crystal, launch) for launch in self.game_env.launch_positions)
-            for crystal in remaining_crystals
+            self._relaxed_distance(current, self.crystals[i])
+            + self._crystal_tail_distance(i, tuple(j for j in remaining_indexes if j != i), samples_needed - 1)
+            for i in remaining_indexes
         )
 
     def search_a_star(self):
@@ -140,29 +133,27 @@ class Solver:
         If you have any expensive pre-computation you can implment it in preprocess_heuristic
         :return: path (list of actions, where each action is an element of GameEnv.ACTIONS)
         """
-        import heapq
-        from itertools import count
-
         init_state = self.game_env.get_init_state()
 
         frontier = []
         counter = count()
 
         start_h = self.compute_heuristic(init_state)
-        heapq.heappush(frontier, (start_h, next(counter),0, init_state, []))
+        heapq.heappush(frontier, (start_h, next(counter), 0, init_state))
 
         visited_cost = {init_state: 0}  # (state, cost)
+        parent = {init_state: (None, None)}
 
         while frontier:
-            _, _, cost, current_state, path = heapq.heappop(frontier)
+            _, _, cost, current_state = heapq.heappop(frontier)
 
             if self.game_env.is_solved(current_state):
-                return path
+                return self._reconstruct_path(parent, current_state)
 
             if cost > visited_cost[current_state]:
                 continue
 
-            for action in GameEnv.ACTIONS:
+            for action in self.action_order:
                 next_state, success, error_msg = self.game_env.perform_action(current_state, action)
                 if not success:
                     continue
@@ -174,8 +165,68 @@ class Solver:
 
                 if next_state not in visited_cost or new_cost < visited_cost[next_state]:
                     visited_cost[next_state] = new_cost
-                    new_path = path + [action]
+                    parent[next_state] = (current_state, action)
                     h = self.compute_heuristic(next_state)
                     f = new_cost + h
-                    heapq.heappush(frontier, (f, next(counter), new_cost, next_state, new_path))
+                    heapq.heappush(frontier, (f, next(counter), new_cost, next_state))
         return []
+
+    def _reconstruct_path(self, parent, state):
+        path = []
+        while parent[state][0] is not None:
+            state, action = parent[state]
+            path.append(action)
+        path.reverse()
+        return path
+
+    @lru_cache(maxsize=None)
+    def _crystal_tail_distance(self, current_index, remaining_indexes, samples_needed):
+        current = self.crystals[current_index]
+        if samples_needed <= 0:
+            return self._nearest_launch_distance(current)
+
+        return min(
+            self._relaxed_distance(current, self.crystals[i])
+            + self._crystal_tail_distance(
+                i,
+                tuple(j for j in remaining_indexes if j != i),
+                samples_needed - 1,
+            )
+            for i in remaining_indexes
+        )
+
+    @lru_cache(maxsize=None)
+    def _nearest_launch_distance(self, pos):
+        return min(self._relaxed_distance(pos, launch) for launch in self.launches)
+
+    @lru_cache(maxsize=None)
+    def _relaxed_distance(self, start, goal):
+        row_distance = abs(start[0] - goal[0])
+        col_distance = abs(start[1] - goal[1])
+
+        vertical_action = GameEnv.WALK_DOWN if goal[0] >= start[0] else GameEnv.WALK_UP
+        horizontal_action = GameEnv.WALK_RIGHT if goal[1] >= start[1] else GameEnv.WALK_LEFT
+
+        return (
+            self._line_distance(row_distance, vertical_action)
+            + self._line_distance(col_distance, horizontal_action)
+        )
+
+    @lru_cache(maxsize=None)
+    def _line_distance(self, distance, walk_action):
+        if distance == 0:
+            return 0
+
+        boost_action = {
+            GameEnv.WALK_LEFT: GameEnv.BOOST_LEFT,
+            GameEnv.WALK_RIGHT: GameEnv.BOOST_RIGHT,
+            GameEnv.WALK_UP: GameEnv.BOOST_UP,
+            GameEnv.WALK_DOWN: GameEnv.BOOST_DOWN,
+        }[walk_action]
+
+        walk_cost = self.game_env.ACTION_COST[walk_action]
+        boost_cost = self.game_env.ACTION_COST[boost_action]
+
+        walk_only = distance * walk_cost
+        boost_and_walk = (distance // 2) * boost_cost + (distance % 2) * walk_cost
+        return min(walk_only, boost_and_walk)

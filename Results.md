@@ -1,3 +1,5 @@
+# V1
+
 |L1 UCS|Solution cost = 10.5; <br />Runtime = 0.0037013531|L3 UCS|Solution cost = 26.0; <br />Runtime = 0.0340163708|
 |-|-|-|-|
 |L1 A\*|Solution cost = 11.0; <br />Runtime = 0.0039196491|L3 A\*|Solution cost = 26.5; <br />Runtime = 0.0450127125|
