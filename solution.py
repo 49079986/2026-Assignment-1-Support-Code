@@ -24,13 +24,10 @@ class Solver:
 
     def __init__(self, game_env):
         self.game_env = game_env
+        self.crystals = game_env.crystal_positions
+        self.launches = game_env.launch_positions
+        self.min_action_cost = min(game_env.ACTION_COST.values())
 
-        #
-        #
-        # TODO: Define any class instance variables you require here (avoid performing any computationally expensive
-        #  heuristic preprocessing operations here - use the preprocess_heuristic method below for this purpose).
-        #
-        #
 
     @staticmethod
     def get_testcases():
@@ -114,16 +111,27 @@ class Solver:
         :return a real number h(n)
         """
         min_cost = min(self.game_env.ACTION_COST.values())
-
         collected = sum(state.crystal_status)
-        if collected >= self.game_env.n_crystals:
-            targets = self.game_env.launch_positions
-        else:
-            targets = [self.game_env.crystal_positions[i]
-                for i, got in enumerate(state.crystal_status)
-                if not got]
 
-        return min(abs(state.row-r) + abs(state.col-c) for r, c in targets) * min_cost  
+        def dist(pos1, pos2):
+            return (abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])) * min_cost
+
+        current = (state.row, state.col)
+
+        if collected >= self.game_env.min_samples:
+            return min(dist(current, launch) for launch in self.game_env.launch_positions)
+
+        remaining_crystals = [
+            self.game_env.crystal_positions[i]
+            for i, got in enumerate(state.crystal_status)
+            if not got
+        ]
+
+        return min(
+            dist(current, crystal) +
+            min(dist(crystal, launch) for launch in self.game_env.launch_positions)
+            for crystal in remaining_crystals
+        )
 
     def search_a_star(self):
         """
